@@ -44,10 +44,17 @@ jobs:
           cd src
           chmod +x ./make-ios.sh ./build.sh || true
           
+          # 注入环境变量跳过开发者 Team ID 限制与强制签名要求
+          export TEAM="UNSIGNED"
+          export CODE_SIGN_IDENTITY=""
+          export CODE_SIGNING_REQUIRED=NO
+          export CODE_SIGNING_ALLOWED=NO
+          export AD_HOC_CODE_SIGNING_ALLOWED=YES
+          
           # 优先使用 make-ios.sh 进行打包编译
           if [ -f "./make-ios.sh" ]; then
             echo "=== 执行 ./make-ios.sh ==="
-            ./make-ios.sh
+            TEAM="UNSIGNED" ./make-ios.sh
           elif [ -f "./build.sh" ]; then
             echo "=== 执行 ./build.sh ==="
             ./build.sh
