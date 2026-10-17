@@ -1,0 +1,98 @@
+name: Build Mush iOS & Metal Shaders
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: '上游源码仓库'
+        required: true
+        default: 'c22dev/mush8'
+      source_ref:
+        description: '分支或 Commit Hash'
+        required: true
+        default: 'main'
+
+jobs:
+  build-ios:
+    name: Build iOS IPA & Metal
+    runs-on: macos-14
+
+    steps:
+      - name: 1. 检出当前构建脚本仓库
+        uses: actions/checkout@v4
+
+      - name: 2. 检出目标 Mush 源码
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
+          path: 'src'
+          submodules: 'recursive'
+
+      - name: 3. 配置 Xcode 环境
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest'
+
+      - name: 4. 显式编译 Metal Shaders (预编译 .metallib)
+        run: |
+          cd src
+          echo "=== 搜寻并预编译 Metal 着色器文件 ==="
+          if compgen -G "*.metal" > /dev/null || compgen -G "**/*.metal" > /dev/null; then
+            mkdir -p build/metal
+            find . -name "*.metal" -exec xcrun -sdk iphoneos metal -c {} -o build/metal/{}.air \;
+            xcrun -sdk iphoneos metallib build/metal/*.air -o build/metal/default.metallib
+            echo "Metal 库编译完成：build/metal/default.metallib"
+          else
+            echo "未检测到独立 .metal 源文件，由 Xcode 自动管线处理。"
+          fi
+
+      - name: 5. 执行 Xcode 命令行编译 (xcodebuild)
+        run: |
+          cd src
+          PROJECT_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          WORKSPACE_FILE=$(find . -maxdepth 2 -name "*.xcworkspace" | head -n 1)
+          
+          echo "=== 正在构建 iOS 无证书 App 包 ==="
+          BUILD_CMD="xcodebuild clean archive"
+          
+          if [ -n "$WORKSPACE_FILE" ]; then
+            BUILD_CMD="$BUILD_CMD -workspace $WORKSPACE_FILE"
+          elif [ -n "$PROJECT_FILE" ]; then
+            BUILD_CMD="$BUILD_CMD -project $PROJECT_FILE"
+          fi
+          
+          $BUILD_CMD \
+            -scheme "mush" \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath ./build/mush.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: 6. 打包无证书 IPA
+        run: |
+          cd src
+          mkdir -p Payload
+          cp -R ./build/mush.xcarchive/Products/Applications/*.app ./Payload/
+          
+          if [ -f ./build/metal/default.metallib ]; then
+            cp ./build/metal/default.metallib ./Payload/*.app/
+          fi
+          
+          zip -r ../Mush-Unsigned.ipa Payload
+          cd ..
+          shasum -a 256 Mush-Unsigned.ipa > SHA256SUMS.txt
+
+      - name: 7. 发布编译产物至 GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: release-${{ github.run_number }}
+          name: Mush Build #${{ github.run_number }}
+          files: |
+            Mush-Unsigned.ipa
+            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
