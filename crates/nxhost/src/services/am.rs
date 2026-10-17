@@ -115,7 +115,8 @@ impl Service for ApplicationFunctions {
             22 | 66 | 67 | 90 | 100..=102 | 121 => {}
             23 => {
                 let mut v = [0u8; 0x10];
-                v[..5].copy_from_slice(b"4.0.1");
+                let version = crate::GAME_VERSION.get().expect("game version identified before services start");
+                v[..version.len()].copy_from_slice(version.as_bytes());
                 rsp.data.extend_from_slice(&v);
             }
             40 => rsp.data.push(0),

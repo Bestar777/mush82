@@ -1,0 +1,10 @@
+/target/
+/build/
+/.local/
+/work/
+*.keys
+*.nsp
+*.nsz
+*.nca
+/Firmware/
+.DS_Store

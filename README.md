@@ -13,10 +13,23 @@ On top of that, Mush8 adds LAN Play over the internet ([lan-play.com](https://ww
 Because Nintendo ninjas are always watching, you will need your own dump :
 - `prod.keys`
 - the base game (`.nsp`)
-- update 4.0.1 (`.nsp`)
+- on macOS, update 3.0.5 or 4.0.1 (`.nsp`; the executable build is checked); the iOS workflow still targets 4.0.1
 - optionally, the Booster Course Pass (`.nsp`) and a `Firmware` folder (fonts, Miis)
 
 Mush8 will then asks for them : on macOS pick the folder holding them in the launcher, on iOS import them from the app (or copy them in Files → On My iPhone → Mush8). File names don't matter
+
+Keep a separate game-data folder for each update: `work/` contains the extracted
+and rewritten code, shader cache and saves for that folder. Do not replace the
+update NSP underneath an already prepared folder. Symlinks to your original
+NSP, keys and Firmware directory work on macOS; copying the large packages is
+unnecessary. The launcher shows the extracted update's display version, and the
+runtime checks the main, SDK and video module build IDs before entering game code.
+
+The `codex/mk8dx-3.0.5` branch adds macOS 3.0.5 compatibility. On the local
+Apple M5 Mac, 3.0.5 has completed a three-lap 50cc Mario Kart Stadium race,
+including keyboard input, audio generation, results, exit and reopening.
+See [the validation record](docs/validation/macos-3.0.5-2026-10-17.md) for evidence
+and limits; iOS, multiplayer and the complete track roster on 3.0.5 are unverified.
 
 ## Requirements
 - Apple Silicon Mac, macOS 14 or later
@@ -41,6 +54,11 @@ By hand, macOS :
 ./make-app.sh
 ```
 gives `build/Mush8.app`. Open it, choose your game files folder and hit Prepare (the first time, it extracts the game and compiles its shaders, a few minutes)
+
+`./script/build_and_run.sh` builds, verifies the app signature and opens the
+launcher (also available as the Codex Run action). `--build-only` builds without
+opening, `--verify` checks launcher startup, `--debug` starts LLDB, and `--logs`
+opens the launcher and follows the game log. Quit the game before rebuilding.
 
 iOS :
 ```

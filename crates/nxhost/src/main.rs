@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 static INITS: OnceLock<Vec<u64>> = OnceLock::new();
+static GAME_VERSION: OnceLock<&'static str> = OnceLock::new();
 
 extern "C" fn init_done() {}
 
@@ -212,6 +213,12 @@ fn start(args: Args) -> Result<()> {
     let keys = nxfs::keys::Keys::load(&args.keys)?;
     let base = nxfs::Nsp::open(&args.base, &keys)?;
     let update = nxfs::Nsp::open(&args.update, &keys)?;
+    let prog = program(&update)?;
+    let exefs = prog.sections.iter().find(|s| s.fs_type == nxfs::nca::FsType::PartitionFs).context("update has no ExeFS")?;
+    let exefs = nxfs::pfs0::Pfs0::open(prog.fs_storage(exefs)?)?;
+    let header = exefs.file("main").context("update has no main module")?.read_vec(0, 0x60)?;
+    anyhow::ensure!(&header[..4] == b"NSO0", "update main is not an NSO");
+    let source_main: String = header[0x40..0x54].iter().map(|b| format!("{b:02x}")).collect();
     let romfs = program(&update)?.patched_romfs(program(&base)?)?;
     eprintln!("[host] RomFS: {:.2} GB", nxfs::storage::Storage::size(&*romfs) as f64 / 1e9);
     if args.movies {
@@ -243,6 +250,11 @@ fn start(args: Args) -> Result<()> {
     eprintln!("[host] guest address space at {:#x}..{:#x}", a.base, a.base + a.layout.total());
 
     let mods = loader::load(&dir, &["main", "subsdk0", "sdk"], &hle::table())?;
+    let ids: Vec<String> = mods.iter().map(|m| m.module_id.iter().take(20).map(|b| format!("{b:02x}")).collect()).collect();
+    let version = nxfs::game::version(&ids[0], &ids[2], &ids[1])?;
+    anyhow::ensure!(ids[0] == source_main, "prepared game code does not match the selected update; prepare this update in a separate game-data folder");
+    let _ = GAME_VERSION.set(version);
+    eprintln!("[host] Mario Kart 8 Deluxe {version} (native ARM64; main {})", ids[0]);
     let _ = diag::MODULES.set(
         mods.iter()
             .map(|m| {
