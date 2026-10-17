@@ -146,9 +146,14 @@ func checks(_ s: Settings) -> [Check] {
     let fm = FileManager.default
     let f = s.folderURL
     let has = { (p: String) in fm.fileExists(atPath: f.appendingPathComponent(p).path) }
+    let control = try? Data(contentsOf: f.appendingPathComponent("work/v-upd/control/control.nacp"))
+    let version: String? = control.flatMap { d in
+        guard d.count >= 0x3070 else { return nil }
+        return String(decoding: d[0x3060..<0x3070].prefix(while: { $0 != 0 }), as: UTF8.self)
+    }
     return [
         Check(id: "Base Game", ok: has(s.base), detail: has(s.base) ? s.base : "not found"),
-        Check(id: "Update", ok: has(s.update), detail: has(s.update) ? s.update : "not found"),
+        Check(id: "Update", ok: has(s.update), detail: has(s.update) ? [version, s.update].compactMap { $0 }.joined(separator: " · ") : "not found"),
         Check(id: "Booster Course Pass", ok: has(s.dlc), detail: has(s.dlc) ? s.dlc : "none", optional: true),
         Check(id: "Game code for this Mac", ok: gameCodeReady(in: f), detail: "work/v-upd/patched"),
         Check(id: "Precompiled shaders", ok: has("work/shader_cache.noindex/index.tsv"), detail: "work/shader_cache.noindex"),

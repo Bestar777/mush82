@@ -1,6 +1,7 @@
 // Mush8 - lib.rs
 // Constantin Clerc (c22dev) - 0.1
 pub mod crypto;
+pub mod game;
 pub mod keys;
 pub mod module;
 pub mod nca;
